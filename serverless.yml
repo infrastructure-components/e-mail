@@ -1,0 +1,146 @@
+service:
+  name: e-mail-subscription
+
+plugins:
+  - serverless-offline
+  - serverless-pseudo-parameters
+  - serverless-dynamodb-local
+custom:
+  stage: ${self:provider.stage, env:STAGE, 'dev'}
+  serverless-offline:
+    host: 0.0.0.0
+    port: ${self:provider.port, env:PORT, '3000'}
+  
+
+package:
+  include:
+    - build/**/*
+  exclude:
+    - .infrastructure_temp/**/*
+    - build/main/**/*
+
+provider:
+  region: eu-west-1
+  stackName: ${self:service.name}-${self:provider.stage, env:STAGE, 'dev'}
+  apiName: ${self:service.name}-${self:provider.stage, env:STAGE, 'dev'}-api
+  staticBucket: infrcomp-e-mail-subscription-assets-${self:provider.stage, env:STAGE, 'dev'}
+  environment:
+    STAGE: ${self:provider.stage, env:STAGE, 'dev'}
+    STAGE_PATH: ${self:provider.stage_path, env:STAGE_PATH, ''}
+    DOMAIN_URL: { "Fn::Join" : ["", [" https://#{ApiGatewayRestApi}", ".execute-api.eu-west-1.amazonaws.com/${self:provider.stage, env:STAGE, 'dev'}" ] ]  }
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:Get*
+        - s3:List*
+      Resource: "*"
+  name: aws
+  runtime: nodejs8.10
+  
+functions:
+  server:
+    handler: build/server/server.default
+    events:
+      - http: ANY /
+      - http: 'ANY {proxy+}'
+      - cors: true
+    role: IsomorphicAppLambdaRole
+
+resources:
+  Resources:
+    StaticBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.staticBucket}
+        AccessControl: PublicRead
+        WebsiteConfiguration:
+          IndexDocument: index.html
+        CorsConfiguration:
+          CorsRules:
+            - AllowedMethods:
+                - GET
+              AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - "*"
+    StaticBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: StaticBucket
+        PolicyDocument:
+          Statement:
+            Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:GetObject
+            Resource:
+              Fn::Join: ["", ["arn:aws:s3:::", {"Ref": "StaticBucket" }, "/*"]]
+    AssetsResource:
+      Type: AWS::ApiGateway::Resource
+      Properties:
+        ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+        RestApiId: !Ref ApiGatewayRestApi
+        PathPart: "assets"
+    Resource:
+      Type: AWS::ApiGateway::Resource
+      Properties:
+        ParentId: !Ref AssetsResource
+        RestApiId: !Ref ApiGatewayRestApi
+        PathPart: "{proxy+}"
+    ProxyMethod:
+      Type: AWS::ApiGateway::Method
+      Properties:
+        HttpMethod: ANY
+        ResourceId: !Ref Resource
+        RestApiId: !Ref ApiGatewayRestApi
+        AuthorizationType: NONE
+        RequestParameters:
+          method.request.path.proxy: true
+        Integration:
+          CacheKeyParameters:
+            - "method.request.path.proxy"
+          RequestParameters:
+            integration.request.path.proxy: "method.request.path.proxy"
+          IntegrationHttpMethod: ANY
+          Type: HTTP_PROXY
+          Uri: https://s3-eu-west-1.amazonaws.com/${self:provider.staticBucket}/{proxy}
+          PassthroughBehavior: WHEN_NO_MATCH
+          IntegrationResponses:
+            - StatusCode: 200
+    Deployment:
+      DependsOn:
+        - ProxyMethod
+      Type: AWS::ApiGateway::Deployment
+      Properties:
+        RestApiId: !Ref ApiGatewayRestApi
+        StageName: ${self:provider.stage, env:STAGE, 'dev'}
+    IsomorphicAppLambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:service}-${self:provider.stage, env:STAGE, 'dev'}-IsomorphicAppLambdaRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: ${self:service}-${self:provider.stage, env:STAGE, 'dev'}-IsomorphicAppLambdaPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - "logs:*"
+                    - "cloudwatch:*"
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - s3:Get*
+                    - s3:List*
+                  Resource: "*"
+

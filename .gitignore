@@ -1,0 +1,23 @@
+# Idea / WebStorm
+.idea/
+
+# Infrastructure-Components
+.infrastructure_temp/
+
+# Environment variables
+.env
+*.env
+
+# Serverless files
+.serverless
+.dynamodb
+
+# output-folders
+container/
+build/
+dist/
+node_modules/
+v8-compile-cache-0/
+
+# files from the mac
+.DS_Store
