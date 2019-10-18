@@ -10,29 +10,29 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@apollo/react-hooks": "^3.0.1",
+    "@apollo/react-hooks": "^3.1.3",
     "@babel/polyfill": "^7.4.4",
     "express": "^4.17.1",
-    "graphql": "^14.2.1",
+    "graphql": "^14.3.1",
     "graphql-tag": "^2.10.1",
-    "infrastructure-components": "^0.2.13",
+    "infrastructure-components": "^0.3.0",
     "isomorphic-fetch": "^2.2.1",
-    "react": "^16.8.6",
+    "react": "^16.10.2",
     "react-apollo": "^2.5.5",
-    "react-dom": "^16.8.6",
+    "react-dom": "^16.10.2",
     "react-helmet": "^5.2.0",
-    "react-router": "^5.0.0",
-    "react-router-dom": "^5.0.0",
+    "react-router": "^5.1.2",
+    "react-router-dom": "^5.1.2",
     "request": "^2.88.0",
     "serverless-http": "^2.1.0",
     "styled-components": "^4.1.3",
     "universal-cookie": "^4.0.1"
   },
   "devDependencies": {
-    "infrastructure-scripts": "^0.2.13",
+    "infrastructure-scripts": "^0.3.0",
     "serverless-dynamodb-local": "^0.2.38",
     "serverless-offline": "^4.9.4",
-    "serverless-pseudo-parameters": "^2.4.0",
+    "serverless-pseudo-parameters": "^2.5.0",
     "serverless-single-page-app-plugin": "^1.0.2"
   }
 }
