@@ -1,9 +1,6 @@
-# Infrastructure-Components: Isomorphic App -Template
+# Infrastructure-Components: E-Mail Sending App
 
 **Create Your Serverless React App**
-
-This project serves as a template of a **Serverless Service-Oriented React App** with
-[infrastructure-components](https://github.com/infrastructure-components/infrastructure-components).
 
 ## Help and Support
 
