@@ -1,15 +1,16 @@
 service:
-  name: e-mail-subscription
+  name: e-mail
 
 plugins:
   - serverless-offline
   - serverless-pseudo-parameters
-  - serverless-dynamodb-local
+  
+# the custom section
 custom:
   stage: ${self:provider.stage, env:STAGE, 'dev'}
   serverless-offline:
     host: 0.0.0.0
-    port: ${self:provider.port, env:PORT, '3000'}
+    port: ${self:provider.port, env:PORT, '3001'}
   
 
 package:
@@ -23,11 +24,13 @@ provider:
   region: eu-west-1
   stackName: ${self:service.name}-${self:provider.stage, env:STAGE, 'dev'}
   apiName: ${self:service.name}-${self:provider.stage, env:STAGE, 'dev'}-api
-  staticBucket: infrcomp-e-mail-subscription-assets-${self:provider.stage, env:STAGE, 'dev'}
+  accountId: "infrcomp-#{AWS::AccountId}-"
+  staticBucket: ${self:provider.accountId}e-mail-${self:provider.stage, env:STAGE, 'dev'}
   environment:
     STAGE: ${self:provider.stage, env:STAGE, 'dev'}
     STAGE_PATH: ${self:provider.stage_path, env:STAGE_PATH, ''}
     DOMAIN_URL: { "Fn::Join" : ["", [" https://#{ApiGatewayRestApi}", ".execute-api.eu-west-1.amazonaws.com/${self:provider.stage, env:STAGE, 'dev'}" ] ]  }
+    BUCKET_ID: ${self:provider.staticBucket}
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -35,16 +38,17 @@ provider:
         - s3:List*
       Resource: "*"
   name: aws
-  runtime: nodejs8.10
+  runtime: nodejs10.x
+  timeout: 120
   
 functions:
   server:
     handler: build/server/server.default
     events:
-      - http: ANY /
+      - http: 'POST /subscribe'
       - http: 'ANY {proxy+}'
       - cors: true
-    role: IsomorphicAppLambdaRole
+    role: ServiceOrientedAppLambdaRole
 
 resources:
   Resources:
@@ -77,49 +81,10 @@ resources:
               - s3:GetObject
             Resource:
               Fn::Join: ["", ["arn:aws:s3:::", {"Ref": "StaticBucket" }, "/*"]]
-    AssetsResource:
-      Type: AWS::ApiGateway::Resource
-      Properties:
-        ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
-        RestApiId: !Ref ApiGatewayRestApi
-        PathPart: "assets"
-    Resource:
-      Type: AWS::ApiGateway::Resource
-      Properties:
-        ParentId: !Ref AssetsResource
-        RestApiId: !Ref ApiGatewayRestApi
-        PathPart: "{proxy+}"
-    ProxyMethod:
-      Type: AWS::ApiGateway::Method
-      Properties:
-        HttpMethod: ANY
-        ResourceId: !Ref Resource
-        RestApiId: !Ref ApiGatewayRestApi
-        AuthorizationType: NONE
-        RequestParameters:
-          method.request.path.proxy: true
-        Integration:
-          CacheKeyParameters:
-            - "method.request.path.proxy"
-          RequestParameters:
-            integration.request.path.proxy: "method.request.path.proxy"
-          IntegrationHttpMethod: ANY
-          Type: HTTP_PROXY
-          Uri: https://s3-eu-west-1.amazonaws.com/${self:provider.staticBucket}/{proxy}
-          PassthroughBehavior: WHEN_NO_MATCH
-          IntegrationResponses:
-            - StatusCode: 200
-    Deployment:
-      DependsOn:
-        - ProxyMethod
-      Type: AWS::ApiGateway::Deployment
-      Properties:
-        RestApiId: !Ref ApiGatewayRestApi
-        StageName: ${self:provider.stage, env:STAGE, 'dev'}
-    IsomorphicAppLambdaRole:
+    ServiceOrientedAppLambdaRole:
       Type: AWS::IAM::Role
       Properties:
-        RoleName: ${self:service}-${self:provider.stage, env:STAGE, 'dev'}-IsomorphicAppLambdaRole
+        RoleName: ${self:service}-${self:provider.stage, env:STAGE, 'dev'}-ServiceOrientedAppLambdaRole
         AssumeRolePolicyDocument:
           Version: "2012-10-17"
           Statement:
@@ -129,7 +94,7 @@ resources:
                   - lambda.amazonaws.com
               Action: sts:AssumeRole
         Policies:
-          - PolicyName: ${self:service}-${self:provider.stage, env:STAGE, 'dev'}-IsomorphicAppLambdaPolicy
+          - PolicyName: ${self:service}-${self:provider.stage, env:STAGE, 'dev'}-ServiceOrientedAppLambdaPolicy
             PolicyDocument:
               Version: "2012-10-17"
               Statement:
@@ -142,5 +107,13 @@ resources:
                   Action:
                     - s3:Get*
                     - s3:List*
-                  Resource: "*"
+                    - s3:Put*
+                    - s3:Delete*
+                  Resource:
+                    Fn::Join: ["", ["arn:aws:s3:::", {"Ref": "StaticBucket" }, "/*"]]
+                - Effect: Allow
+                  Action:
+                    - "ses:SendEmail"
+                    - "ses:SendRawEmail"
+                  Resource: "arn:aws:ses:eu-west-1:604800795243:identity/mail@frankzickert.de"
 
